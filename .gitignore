@@ -4,6 +4,7 @@ sync.ps1
 # Ignore symbolic link files
 *.symlink
 minescript
+new_minescript
 
 # Ignore Visual Studio Code settings
 .vscode/settings.json

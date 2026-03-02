@@ -61,7 +61,18 @@ class WorldState:
     # ====================================
     # Direct Sensor Updates
     # ====================================
-
+    def update_ceiling_blocks(self, blocks):
+        # This can be called directly from the elog loop when we fetch ceiling blocks
+        current_y = self.depth_history[-1] if self.depth_history else 64
+        under_roof = False
+        under_cave=False
+        for block in blocks:
+            if block not in ["air", "cave_air"]:
+                under_roof = True
+                if block in ["stone", "deepslate", "granite", "diorite", "andesite"]:
+                    under_cave = True
+                break
+        self.underground = current_y < 20 or (under_roof and under_cave and current_y < 62)
     def update_targeted_block(self, block):
         if block:
             self.targeted_block = block.type
@@ -126,16 +137,24 @@ class WorldState:
         recent = [t for t in self.recent_hits if now - t <= window]
         self.combat_intensity = len(recent) / window
 
-    def _infer_environment(self):
-        if self.current_biome and "cave" in self.current_biome.lower():
-            self.underground = True
-        else:
-            self.underground = False
+    def _infer_environment(self, ceiling_blocks=None):
+        # 1. Depth Check (Standard sea level is ~63)
+        current_y = self.depth_history[-1] if self.depth_history else 64
+        
+        # 2. Ceiling Check
+        # Pass the block type above the player into this method
+        under_roof = False
+        if ceiling_blocks:
+            for block in ceiling_blocks:
+                if block not in ["air", "cave_air"]:
+                    under_roof = True
+                    break
 
-        self.darkness = (
-            self.underground and
-            self.combat_intensity > 0.2
-        )
+        # If deep enough or under heavy cover, we are "underground"
+        self.underground = current_y < 50 or (under_roof and current_y < 62)
+
+        # Darkness logic (Combat + Underground is a good proxy for 'danger/dark')
+        self.darkness = self.underground and self.combat_intensity > 0.2
 
     # ====================================
     # Export for AI

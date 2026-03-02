@@ -3,10 +3,8 @@ from minescript import *
 import time
 import math
 import threading
-# import minescript.biotrack as biotrack
 from event_writer import *
 # from minescript.system.lib.minescript import chat # no need 
-# from minescript.system.lib.minescript import *
 from worldstate import WorldState
 import json
 
@@ -233,6 +231,12 @@ def main():
     global damage_event
     try:
         player = get_player()  
+            # ---- Ceiling blocks ----
+        pos = [int (x) for x in player.position]
+        ceiling_blocks = get_block_region(pos, [
+            pos[0], pos[1]+10, pos[2]
+        ]).blocks
+        ceiling_blocks = [b[len("minecraft:"):] for b in ceiling_blocks if type(b) is str and b.startswith("minecraft:")]
             # ---- Position ----
         pos_event = {
             "type": "position",
@@ -242,7 +246,8 @@ def main():
         }
         world_state.update_event(pos_event)
 
-        # ---- Targeted block ----
+        # ---- Environment ----
+        world_state.update_ceiling_blocks(ceiling_blocks)
         block = player_get_targeted_block(20)
         world_state.update_targeted_block(block)
 
@@ -257,8 +262,8 @@ def main():
         # ---- Inventory snapshot (optional slower rate) ----
         inv = player_inventory()
         world_state.update_inventory(inv)
-    except:
-        log("Warning: Player data not available yet")
+    except Exception as e:
+        log(f"Warning: Player data not available yet: {e}")
 
     # ---- damage detection ----
 
