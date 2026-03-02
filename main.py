@@ -79,12 +79,14 @@ def build_prompt(event: GameEvent, mood: dict):
     situation = []
 
     if event.type == "under_attack":
-        who = "you" if event.target == "player" else event.target
-        situation.append(
-            f"{who} are taking damage"
-            + (f" from {event.cause}" if event.cause else "")
-            + (f" ({event.intensity} hits)" if event.intensity else "")
-        )
+        if event.target == "player":
+            situation.append(
+                f"You are under sustained attack ({event.intensity} hits)"
+            )
+        else:
+            situation.append(
+                f"A {event.mob} is under heavy attack ({event.intensity} hits)"
+            )
 
     elif event.type == "imminent_threat":
         situation.append(
@@ -113,6 +115,7 @@ def build_prompt(event: GameEvent, mood: dict):
     else: 
         print(f"-----{event.type}-----")
         situation.append(str(event.type))
+    print(situation)
 
     return f"""
 

@@ -27,33 +27,6 @@ An AI companion that watches a Minecraft session in real time, understands what'
 - Well, that's one way to become a zombie's favorite snack. Better luck next time! (player_death)
 ```
 
-## Credits
-
-<!-- [![aigf](https://github.com/FPTSTUDEN/AI-GF-MC/blob/78e6beb2dfb16c07e8d1db7fc97faa9ffa485453/misc/ai_catsdontlikecoffee.png){:width=200px}](https://www.instagram.com/catsdontlikecoffee/) -->
-### catsdontlikecoffee
-
-<a href="https://www.instagram.com/catsdontlikecoffee/">
-    <img src="misc\ai_catsdontlikecoffee.png" alt="catsdontlikecofee" width="150"/>
-</a>
-
-project idea partially inspired by this channel
-
-also the videos are insane and i like it
-
-<a href="https://www.instagram.com/catsdontlikecoffee/">Check them out</a>
-
-### sam-ple
-
-their repo helped me a lot with:
-
-- latest version's syntax
-- biotrack (inspired by their biomerecorder)
-
-### Other AIs
-
-- chatgpt, gemini, github copilot... for refining my code and saving my time
-
-<a href="https://github.com/sam-ple">Check them out</a>
 
 ## Stable files
 
@@ -94,3 +67,7 @@ their repo helped me a lot with:
 ### Memory
 
 - death count (+ reason for death)
+
+## Credits
+
+See [credits.md](./credits.md)

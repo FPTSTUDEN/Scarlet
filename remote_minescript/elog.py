@@ -6,6 +6,11 @@ import threading
 # import minescript.biotrack as biotrack
 from event_writer import *
 # from minescript.system.lib.minescript import chat # no need 
+# from minescript.system.lib.minescript import *
+from worldstate import WorldState
+import json
+
+world_state = WorldState()
 
 LOG_FILE = "raw_event_log.txt"
 
@@ -89,28 +94,33 @@ def on_player_damage(amount, cause, health):
 
     # raw event
     if health > 0:
-        write_event({
+        event_data={
             "type": "player_damage",
             "amount": round(amount, 1),
             "cause": str(cause),
             "health": round(health, 1)
-        })
+        }
+        write_event(event_data)
+        world_state.update_event(event_data)
     else:
-        write_event({
+        event_data={
             "type": "player_death",
-            "cause": str(cause)
-        })
+            "cause": str(cause)        }
+        write_event(event_data)
+        world_state.update_event(event_data)
 
     # aggregate
     if len(player_damage_times) >= UNDER_ATTACK_HITS:
         if not rate_limited("under_attack"):
-            write_event({
+            event_data = aggregate_events([{
                 "type": "under_attack",
-                "target": "player",
-                "intensity": len(player_damage_times),
-                "cause": ", ".join(set([x[1] for x in player_damage_times])),
-                "health": round(health, 1)
-            })
+                "source": cause,
+                "health": health,
+                "severity": min(1.0, len(player_damage_times) / UNDER_ATTACK_HITS)
+            }])
+        if event_data:
+            write_event(event_data)
+            world_state.update_event(event_data)
         player_damage_times.clear()
 
 def on_victim_damage(victim):
@@ -119,22 +129,27 @@ def on_victim_damage(victim):
     hits.append(t)
     hits[:] = [x for x in hits if t - x <= UNDER_ATTACK_WINDOW]
 
-    write_event({
+    event_data={
         "type": "victim_damage",
         "mob_id": victim.id,
         "mob": victim.name,
-        "cause": "player",
         "health": round(victim.health, 1)
-    })
+    }
+    write_event(event_data)
+    world_state.update_event(event_data)
 
     if len(hits) >= UNDER_ATTACK_HITS:
-        write_event({
+        event_data={
             "type": "under_attack",
             "target": "mob",
             "mob_id": victim.id,
             "mob": victim.name,
+            "cause": "player",
             "intensity": len(hits)
-        })
+        }
+        write_event(event_data)
+        world_state.update_event(event_data)
+        # print(victim.name, "is under attack by player with", len(hits), "hits!")
         hits.clear()
 
 def check_imminent_threat():
@@ -143,21 +158,25 @@ def check_imminent_threat():
 
     if len(recent) >= 2:
         if not rate_limited("imminent_threat"):
-            write_event({
+            event_data={
                 "type": "imminent_threat",
                 "mobs": list(set(recent))
-            })
+            }
+            write_event(event_data)
+            world_state.update_event(event_data)
         recent_threats.clear()
 
 def on_mob_near(e):
     t = now()
     recent_threats.append((t, e.name))
 
-    write_event({
+    event_data={
         "type": "mob_near",
         "mob": e.name,
         "mob_id": e.id
-    })
+    }
+    write_event(event_data)
+    world_state.update_event(event_data)
 
     check_imminent_threat()
 
@@ -165,11 +184,13 @@ def on_mob_incoming(e):
     t = now()
     recent_threats.append((t, e.name))
 
-    write_event({
+    event_data={
         "type": "mob_incoming",
         "mob": e.name,
         "mob_id": e.id
-    })
+    }
+    write_event(event_data)
+    world_state.update_event(event_data)
 
     check_imminent_threat()
 
@@ -210,7 +231,34 @@ log("Event logger started!")
 def main():
     global last_pos, last_health, last_seen_dangers, player
     global damage_event
-    player = get_player()  
+    try:
+        player = get_player()  
+            # ---- Position ----
+        pos_event = {
+            "type": "position",
+            "x": player.position[0],
+            "y": player.position[1],
+            "z": player.position[2]
+        }
+        world_state.update_event(pos_event)
+
+        # ---- Targeted block ----
+        block = player_get_targeted_block(20)
+        world_state.update_targeted_block(block)
+
+        # ---- Targeted entity ----
+        entity = player_get_targeted_entity(20)
+        world_state.update_targeted_entity(entity)
+
+        # ---- Hand items ----
+        hands = player_hand_items()
+        world_state.update_hand_items(hands)
+
+        # ---- Inventory snapshot (optional slower rate) ----
+        inv = player_inventory()
+        world_state.update_inventory(inv)
+    except:
+        log("Warning: Player data not available yet")
 
     # ---- damage detection ----
 
@@ -245,6 +293,10 @@ def main():
             "type": "player_low_health",
             "health": round(player.health, 1)
         })
+        world_state.update_event({
+            "type": "player_low_health",
+            "health": round(player.health, 1)
+        })
 
 
     last_pos = player.position
@@ -258,15 +310,6 @@ def periodic_danger_check():
                 for monster in ["creeper","zombie","skeleton","spider","enderman","witch","drowned","husk","stray","phantom","pillager","ravager","evoker","vindicator"]:
                     if monster in e.type and distance(player.position, e.position) < 5:
                         log(f"Hostile mob nearby: {e.name} at {format_position(e.position)}")
-                        # write_event({
-                        #     "type": "mob_near",
-                        #     "mob": e.name,
-                        #     "position": {
-                        #         "x": round(e.position[0], 1),
-                        #         "y": round(e.position[1], 1),
-                        #         "z": round(e.position[2], 1)
-                        #     }
-                        # })
                         on_mob_near(e)
                         seen_entity_ids.add(e.id)
         else:
@@ -286,6 +329,11 @@ def periodic_danger_check():
                 elif proxity_now > proxity_before:
                     log(f"Distancing from #{e.id} {e.name}...")
                     write_event({
+                        "type": "mob_retreat",
+                        "mob_id": e.id,
+                        "mob": e.name
+                    })
+                    world_state.update_event({
                         "type": "mob_retreat",
                         "mob_id": e.id,
                         "mob": e.name
@@ -316,17 +364,18 @@ with EventQueue() as eq:
         if event.type == EventType.DAMAGE:
             damage_event=event
             damage_check()
-        try:
-            with open(RESPONSE_FILE, "r", encoding="utf-8") as rf:
-                response_data = rf.read()
-                if response_data != last_response:
-                    last_response = response_data
-                    echo("New response generated:")
-                    echo(last_response)
-        except FileNotFoundError:
-            pass
+            state=world_state.export()
+            write_world_state(state)
         # if event.type == EventType.CHAT:
-        #     msg = event.message
+        #     print(msg := event.message)
+        
+        # with open(RESPONSE_FILE, "r", encoding="utf-8") as rf:
+        #     response_data = rf.read()
+        #     if response_data != last_response:
+        #         last_response = response_data
+        #         echo("New response generated:")
+        #         echo(last_response)
+        
         #     if msg =="Damage event detected":
         #         echo(msg+" from chat")
 
