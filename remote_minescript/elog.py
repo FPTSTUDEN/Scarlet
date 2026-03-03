@@ -1,5 +1,5 @@
+# pyright: reportUndefinedVariable=false
 from minescript import *
-#comment
 import time
 import math
 import threading
@@ -195,7 +195,7 @@ def on_mob_incoming(e):
 # ------------------ state ------------------
 
 last_pos = None
-last_health = None
+last_health = 20.0
 global seen_entity_ids
 seen_entity_ids = set()
 
@@ -281,11 +281,15 @@ def main():
             log(f"Player took damage ({damage:.1f} HP) by {source} current health {player.health:.1f}")
             on_player_damage(damage,source,player.health)
         elif damage_event.cause_uuid==player.uuid:
+            victim=None
             for entity in get_entities():
                 if entity.uuid==damage_event.entity_uuid:
                     victim=entity
                     break
-            log(f"#{victim.id} {victim.name} took damage by player current health {victim.health}")
+            if victim==None:
+                log(f"Warning: Victim entity not found for damage event: {damage_event}")
+            else:
+                log(f"#{victim.id} {victim.name} took damage by player current health {victim.health}")
             on_victim_damage(victim)
     except:
         log("Warning: No damage listener yet")
@@ -306,46 +310,45 @@ def main():
 
     last_pos = player.position
     last_health = player.health
+last_danger_distances = {}
 def periodic_danger_check():
     # ---- nearby hostile mobs ----
     # for e in entities(): echo(e['name'])
     player=get_player()
+    HOSTILES = ["creeper","zombie","skeleton","spider","enderman","witch","drowned","husk","stray","phantom","pillager","ravager","evoker","vindicator"]
     for e in get_entities():
-        if e.id not in seen_entity_ids:
-                for monster in ["creeper","zombie","skeleton","spider","enderman","witch","drowned","husk","stray","phantom","pillager","ravager","evoker","vindicator"]:
-                    if monster in e.type and distance(player.position, e.position) < 5:
-                        log(f"Hostile mob nearby: {e.name} at {format_position(e.position)}")
-                        on_mob_near(e)
-                        seen_entity_ids.add(e.id)
-        else:
-            if e.id in [a.id for a in last_seen_dangers]:
-                last_danger=last_seen_dangers[[a.id for a in last_seen_dangers].index(e.id)]
-                proxity_before = distance(last_pos, last_danger.position)
-                proxity_now = distance(player.position, e.position)
-                if proxity_now>8: #view
-                    last_seen_dangers.remove(last_seen_dangers[[a.id for a in last_seen_dangers].index(e.id)])
-                    continue
-                if abs(proxity_now-proxity_before)<2:
-                    continue
-                if proxity_now < proxity_before:
-                    log(f"Incoming #{e.id} {e.name}!")
-                    on_mob_incoming(e)
+        if not any(monster in e.type for monster in HOSTILES):
+            continue
 
-                elif proxity_now > proxity_before:
-                    log(f"Distancing from #{e.id} {e.name}...")
-                    write_event({
-                        "type": "mob_retreat",
-                        "mob_id": e.id,
-                        "mob": e.name
-                    })
-                    world_state.update_event({
-                        "type": "mob_retreat",
-                        "mob_id": e.id,
-                        "mob": e.name
-                    })
+        dist_now = distance(player.position, e.position)
 
-                last_seen_dangers.remove(last_seen_dangers[[a.id for a in last_seen_dangers].index(e.id)])
-            last_seen_dangers.append(e) if len(last_seen_dangers)<5 else last_seen_dangers.append(e) and last_seen_dangers.pop(0)
+        if dist_now > 8:
+            if e.id in last_danger_distances:
+                del last_danger_distances[e.id]
+            continue
+
+        if e.id not in last_danger_distances:
+            last_danger_distances[e.id] = dist_now
+            continue
+
+        dist_before = last_danger_distances[e.id]
+
+        if abs(dist_now - dist_before) < 2:
+            continue  # ignore micro jitter
+
+        if dist_now < dist_before:
+            log(f"Incoming #{e.id} {e.name}!")
+            on_mob_incoming(e)
+
+        elif dist_now > dist_before:
+            log(f"Distancing from #{e.id} {e.name}...")
+            write_event({
+                "type": "mob_retreat",
+                "mob_id": e.id,
+                "mob": e.name
+            })
+
+        last_danger_distances[e.id] = dist_now  
     threading.Timer(1, periodic_danger_check).start()
 
 
@@ -370,6 +373,9 @@ with EventQueue() as eq:
             damage_event=event
             damage_check()
             state=world_state.export()
+            # write_world_state(state)
+            # delay to ensure state is updated before AI reads it
+            time.sleep(0.1)
             write_world_state(state)
         # if event.type == EventType.CHAT:
         #     print(msg := event.message)

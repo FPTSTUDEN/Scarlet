@@ -1,11 +1,16 @@
 {
   "mood": {
-    "stress": 0.7,
-    "confidence": 0.30000000000000004
+    "stress": 0.2,
+    "confidence": 0.8
   },
   "stats": {
     "recent_deaths": 0,
-    "last_comment_time": 1772373499.2945783,
+    "last_comment_time": 1772535629.084129,
     "last_comment_topic": ""
+  },
+  "immersion": {
+    "atmosphere": "tense",
+    "tone": "urgent",
+    "initiative_bias": 0.62
   }
 }

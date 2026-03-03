@@ -62,8 +62,10 @@ class WorldState:
     # Direct Sensor Updates
     # ====================================
     def update_ceiling_blocks(self, blocks):
+        # print(blocks)
         # This can be called directly from the elog loop when we fetch ceiling blocks
-        current_y = self.depth_history[-1] if self.depth_history else 64
+        current_y = self.depth_history[-1] if self.depth_history else 61
+        # print(f"Current Y: {current_y}")
         under_roof = False
         under_cave=False
         for block in blocks:
@@ -71,8 +73,9 @@ class WorldState:
                 under_roof = True
                 if block in ["stone", "deepslate", "granite", "diorite", "andesite"]:
                     under_cave = True
-                break
-        self.underground = current_y < 20 or (under_roof and under_cave and current_y < 62)
+        # print(f"Under roof: {under_roof}, Under cave: {under_cave}")
+        self.underground = current_y < 20 or (under_roof and under_cave and (current_y < 62))
+        # print(f"Updated underground status: {self.underground}")
     def update_targeted_block(self, block):
         if block:
             self.targeted_block = block.type
@@ -87,8 +90,8 @@ class WorldState:
 
     def update_hand_items(self, hand_items):
         if hand_items:
-            self.main_hand = hand_items.main_hand.item
-            self.off_hand = hand_items.off_hand.item if hand_items.off_hand else None
+            self.main_hand = hand_items.main_hand["item"] if hand_items.main_hand else None
+            self.off_hand = hand_items.off_hand["item"] if hand_items.off_hand else None
 
     def update_inventory(self, items):
         self.inventory_summary.clear()

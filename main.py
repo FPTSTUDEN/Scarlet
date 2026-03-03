@@ -1,3 +1,4 @@
+
 import json
 from llm.client import generate_response
 from emotion.engine import update_state, decide_intent, should_comment
@@ -8,15 +9,99 @@ import time
 from dotenv import load_dotenv
 import os
 load_dotenv()
-def get_severity(event_type: str) -> float:
-    return EVENT_SEVERITY.get(event_type, DEFAULT_SEVERITY)
+from dataclasses import dataclass
+from enum import Enum
 
-# PERSONALITY = {
-#     "talkativeness": 0.35,   # lower = more silence
-#     "sarcasm": 0.4,
-#     "empathy": 0.6,
-#     "urgency_bias": 0.5
-# }
+
+WORLD_STATE_FILE = "new_minescript/world_state.json"
+
+def load_world_state():
+    try:
+        with open(WORLD_STATE_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+class Atmosphere(Enum):
+    CALM = "calm"
+    TENSE = "tense"
+    CLAUSTROPHOBIC = "claustrophobic"
+    TRIUMPHANT = "triumphant"
+    SOMBER = "somber"
+
+
+@dataclass
+class DerivedState:
+    threat: float
+    loss: bool
+    exploration_shift: bool
+
+
+@dataclass
+class ImmersionContext:
+    atmosphere: str
+    tone: str
+    initiative_bias: float
+
+
+def build_derived_state(event: GameEvent, state: dict, world: dict) -> DerivedState:
+
+    threat = event.severity
+
+    # Add ambient pressure
+    darkness = world.get("darkness", 0)
+    underground = world.get("underground", False)
+
+    ambient_pressure = darkness * 0.4 + (0.3 if underground else 0)
+
+    threat = min(1.0, threat + ambient_pressure)
+
+    loss = event.type == "player_death"
+    exploration_shift = event.type in ["biome_enter", "biome_exit"]
+
+    return DerivedState(
+        threat=threat,
+        loss=loss,
+        exploration_shift=exploration_shift
+    )
+
+def build_immersion_context(derived: DerivedState, mood: dict, world: dict) -> ImmersionContext:
+
+    stress = mood["stress"]
+    confidence = mood["confidence"]
+
+    if derived.loss:
+        atmosphere = Atmosphere.SOMBER.value
+        tone = "quiet"
+    elif derived.threat > 0.7:
+        atmosphere = Atmosphere.TENSE.value
+        tone = "urgent"
+    elif derived.exploration_shift and confidence > 0.6:
+        atmosphere = Atmosphere.TRIUMPHANT.value
+        tone = "uplifted"
+    elif stress > 0.6:
+        atmosphere = Atmosphere.CLAUSTROPHOBIC.value
+        tone = "whispered"
+    else:
+        atmosphere = Atmosphere.CALM.value
+        tone = "soft"
+
+    initiative_bias = max(0.1, min(1.0, 0.4 + stress * 0.3 + confidence * 0.2))
+
+    return ImmersionContext(
+        atmosphere=atmosphere,
+        tone=tone,
+        initiative_bias=round(initiative_bias, 2)
+    )
+def get_severity(event_type: str) -> float:
+    severity = EVENT_SEVERITY.get(event_type, DEFAULT_SEVERITY)
+    return severity if severity is not None else DEFAULT_SEVERITY
+
+    # PERSONALITY = {
+    #     "talkativeness": 0.35,   # lower = more silence
+    #     "sarcasm": 0.4,
+    #     "empathy": 0.6,
+    #     "urgency_bias": 0.5
+    # }
 
 STATE_FILE = "state/companion_state.json"
 def reset_state():
@@ -68,101 +153,111 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
-def build_prompt(event: GameEvent, mood: dict):
-    print(event.type,event.severity)
+def build_prompt(event: GameEvent, mood: dict, immersion: dict, world: dict):
     urgency = (
         "critical" if event.severity >= 0.85 else
-        "high" if event.severity >= 0.5 else #0.6 -> 0.5
+        "high" if event.severity >= 0.5 else
         "low"
     )
 
     situation = []
 
     if event.type == "under_attack":
-        if event.target == "player":
-            situation.append(
-                f"You are under sustained attack ({event.intensity} hits)"
-            )
-        else:
-            situation.append(
-                f"A {event.mob} is under heavy attack ({event.intensity} hits)"
-            )
+        situation.append(
+            f"Under sustained attack ({event.intensity} hits)"
+        )
 
     elif event.type == "imminent_threat":
         situation.append(
-            f"Hostile mobs are closing in ({len(event.mobs)} nearby)"
+            f"{len(event.mobs)} hostile mobs closing in"
         )
 
     elif event.type == "player_low_health":
         situation.append(
-            f"Health is critically low ({event.health:.1f} HP)"
+            f"Health critically low ({event.health:.1f} HP)"
         )
 
     elif event.type == "player_death":
         situation.append(
-            f"You just died due to {event.cause}"
+            f"Player died due to {event.cause}"
         )
 
     elif event.type == "biome_enter":
         situation.append(
-            f"You entered the {event.biome} biome"
+            f"Entered {event.biome} biome"
         )
 
     elif event.type == "biome_exit":
         situation.append(
-            f"You spent {event.stay_time} seconds in the {event.biome} biome. Now entering {event.entered_biome} biome (for the {event.entered_biome_count} time)."
+            f"Left {event.biome} biome"
         )
-    else: 
-        print(f"-----{event.type}-----")
+
+    else:
         situation.append(str(event.type))
-    print(situation)
 
     return f"""
+Atmosphere: {immersion['atmosphere']}
+Tone: {immersion['tone']}
+Initiative bias: {immersion['initiative_bias']}
+
+Environment:
+- Biome: {world.get('biome', 'unknown')}
+- Underground: {world.get('underground', False)}
+- Darkness: {world.get('darkness', 0)}
 
 Situation:
 - {'; '.join(situation)}
 - Urgency: {urgency}
 
-Player state:
+Player mood:
 - Stress: {mood['stress']:.2f}
 - Confidence: {mood['confidence']:.2f}
-
-
 """.strip()
-# short sentences modification
-# Removed: Stay in character. 
-
 SEVERITY_THRESHOLD = 0.3  # tune this
 
 def handle_event(event: GameEvent):
     state = load_state()
+    world_state = load_world_state()
 
     severity = get_severity(event.type)
-    event.severity = severity  # attach for prompt use
+    if severity is None:
+        severity = DEFAULT_SEVERITY
+    event.severity = severity
 
     update_state(state, event)
 
-    # --- new gate ---
+    # --- Immersion Layer ---
+    derived = build_derived_state(event, state, world_state)
+    immersion = build_immersion_context(derived, state["mood"], world_state)
+
+    state["immersion"] = {
+        "atmosphere": immersion.atmosphere,
+        "tone": immersion.tone,
+        "initiative_bias": immersion.initiative_bias
+    }
+
+    # --- Severity Gate ---
     if severity < SEVERITY_THRESHOLD:
         save_state(state)
         return
-    # ----------------
 
     if not should_comment(state, event):
         save_state(state)
         return
 
     intent = decide_intent(state, event)
-    prompt = build_prompt(event, state["mood"])  # pass mood dict, not intent
 
+    prompt = build_prompt(
+    event,
+    state["mood"],
+    state["immersion"],
+    world_state
+)
+    print("Generated prompt:", prompt)
     response = generate_response(prompt)
     responses.append(response)
 
-    # print("AI:", response)
-    # print(event.type, "| Severity:", severity, "| Timestamp:", event.timestamp)
-
     save_state(state)
-
 
 # ---- TEST ----
 MINESCRIPT__PATH=os.getenv("MINESCRIPT_PATH")
