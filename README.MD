@@ -19,20 +19,16 @@ An AI companion that watches a Minecraft session in real time, understands what'
 - *Speaks directly in Minecraft chat* (in progress)
 - Adapts tone based on danger, stress, and context (pending improvements)
 
-## Examples
+### Example
 
-```
-- Relax, you've got this! Just a little more precision and those mobs will be history. (imminent_threat)
-- Nice going there, Caspar the friendly zombie's new best friend! (under_attack)
-- Well, that's one way to become a zombie's favorite snack. Better luck next time! (player_death)
-```
-
+> - Relax, you've got this! Just a little more precision and those mobs will be history. (imminent_threat)
+> - Nice going there, Caspar the friendly zombie's new best friend! (under_attack)
+> - Well, that's one way to become a zombie's favorite snack. Better luck next time! (player_death)
 
 ## Stable files
 
-- **remote_minescript/elog.py** - event logger to /.minecraft/events.txt
-- **remote_minescript/biotrack.py** - biome & time on biome logger
-- **main.py** - THE AI: one-time parses events.log for now
+- **remote_minescript/elog.py** - event logger to /.minecraft/minescript/single_event.log
+- **main.py** - Main AI engine
 
 ## Tech stack
 
@@ -47,26 +43,21 @@ An AI companion that watches a Minecraft session in real time, understands what'
 (...: in progress, V: Done, X: Failed attempt)
 
 - [x] **under_attack aggregator**
-- [x] **damaged** (cause: lava,monster...)
-- [x] **attacked entity**
-- death ... (0 HP detection possible)
-- [x] **low_health** 
-- [x] **monster_near**
+- [x] Refactored `biotrack` into class & usage in `elog`
+- [ ] Type definitions
+- [ ] Ignoring blocked hostile (get_block_region has block)
+- [ ] Detailed underground checks
+- [ ] Ingame chat
+- [ ] Style chat overlay & reactions
 - [ ] achievement
-- [x] enter_dimension/ **biome**
 - ~~lava_near~~ (no need)
 
-- [] Player action (long duration): mining, farming,...
-- [] Inventory: collective, should be new items only
-
-### Log parser -> comment
-
-- Danger situation (cheer up/feel pity...)
-- above logs...
+- [ ] Player action (long duration): mining, farming,...
+- [ ] Inventory: collective, should be new items only
 
 ### Memory
 
-- death count (+ reason for death)
+- [x] death count (+ reason for death)
 
 ## Credits
 

@@ -51,7 +51,7 @@ class WorldState:
 
         elif etype == "biome_enter":
             self.current_biome = event.get("biome")
-            self.biome_enter_time = time.time()
+            self.biome_enter_time = event.get("enter_time")
 
         elif etype == "position":
             self._update_position(event)
@@ -125,7 +125,7 @@ class WorldState:
     def _infer(self):
         self._infer_vertical()
         self._infer_combat()
-        self._infer_environment()
+        # self._infer_environment()  # Environment inference now relies on direct ceiling block updates
 
     def _infer_vertical(self):
         if len(self.depth_history) < 6:

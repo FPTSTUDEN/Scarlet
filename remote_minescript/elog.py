@@ -6,9 +6,11 @@ import threading
 from event_writer import *
 # from minescript.system.lib.minescript import chat # no need 
 from worldstate import WorldState
+from biotrack import BiomeTracker
 import json
 
 world_state = WorldState()
+biometracker = BiomeTracker()
 
 LOG_FILE = "raw_event_log.txt"
 
@@ -372,11 +374,16 @@ with EventQueue() as eq:
         if event.type == EventType.DAMAGE:
             damage_event=event
             damage_check()
-            state=world_state.export()
-            # write_world_state(state)
-            # delay to ensure state is updated before AI reads it
-            time.sleep(0.1)
-            write_world_state(state)
+            
+        currentBiome=biometracker.check_biomes()
+        if currentBiome["biome"]!=world_state.current_biome:
+            world_state.update_event({
+                "type": "biome_enter",
+                "biome": currentBiome["biome"],
+                "enter_time": currentBiome["biome_enter_time"]
+            })
+        state=world_state.export()
+        write_world_state(state) 
         # if event.type == EventType.CHAT:
         #     print(msg := event.message)
         
