@@ -7,9 +7,11 @@
 </h1>
 
 <!-- # Scarlet -->
-> **[InLava]** Well, that was hot. Not literally, I hope?
+> <img align="left" alt="cover" src="./.misc/lava.png" width=10% height=10%>
+> <img align="right" alt="cover" src="./.misc/download__5_-removebg-preview.png" width=25% height=25%>
+>  Well, that was hot. Not literally, I hope?
 
-An AI companion that watches a Minecraft session in real time, understands what's happening (combat, danger, death, biomes), *and reacts live inside the game using in-game chat* (in progress).
+Scarlet is an AI companion that watches your Minecraft session in real time, understands what's happening (combat, danger, death, biomes), *and reacts live inside the game using in-game chat (in progress)*.
 
 ## Features
 
@@ -43,9 +45,9 @@ An AI companion that watches a Minecraft session in real time, understands what'
 (...: in progress, V: Done, X: Failed attempt)
 
 - [x] **under_attack aggregator**
-- [x] Refactored `biotrack` into class & usage in `elog`
 - [ ] Type definitions
 - [ ] Ignoring blocked hostile (get_block_region has block)
+- [ ] Immersive AI answers
 - [ ] Detailed underground checks
 - [ ] Ingame chat
 - [ ] Style chat overlay & reactions
